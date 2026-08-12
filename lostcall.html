@@ -1,0 +1,798 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LostCalls — Universal Offline QR Hub</title>
+    <!-- Dynamic Manifest for Single File PWA -->
+    <link id="pwa-manifest" rel="manifest" href="">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.1/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsQR@1.4.0/dist/jsQR.js"></script>
+    <style>
+        body { background-color: #030307; color: #00ffcc; font-family: 'Courier New', monospace; margin: 0; padding: 15px; }
+        h1 { color: #ffffff; border-bottom: 2px solid #00ffcc; padding-bottom: 8px; margin-top: 0; font-size: 20px; text-shadow: 0 0 8px #00ffcc; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .grid { display: grid; grid-template-columns: 1fr; gap: 15px; }
+        @media(min-width: 950px) { .grid { grid-template-columns: 2fr 1fr; } }
+        .panel { background: #0c101d; border: 1px solid #1e293b; border-radius: 6px; padding: 15px; box-shadow: 0 4px 15px rgba(0,255,204,0.1); margin-bottom: 15px; position: relative; overflow: hidden; }
+        .panel::before { content: ""; position: absolute; top: 0; left: -100%; width: 50%; height: 2px; background: linear-gradient(90deg, transparent, #00ffcc, transparent); animation: scanline 4s linear infinite; }
+        @keyframes scanline { 0% { left: -100%; } 100% { left: 200%; } }
+        h3 { margin-top: 0; color: #38bdf8; border-bottom: 1px solid #1e293b; padding-bottom: 5px; font-size: 15px; display: flex; justify-content: space-between; align-items: center; }
+        .console { background: #020617; color: #34d399; padding: 10px; border-radius: 4px; height: 160px; overflow-y: auto; font-size: 12px; margin: 0; }
+        input, button, select, textarea { background: #1e293b; color: #f8fafc; border: 1px solid #334155; padding: 8px 10px; border-radius: 4px; font-family: 'Courier New', monospace; margin-top: 5px; width: 100%; box-sizing: border-box; }
+        button { background: #0d9488; cursor: pointer; font-weight: bold; width: auto; transition: 0.2s; }
+        button:hover { background: #14b8a6; text-shadow: 0 0 5px #fff; }
+        .status-box { font-weight: bold; padding: 2px 8px; border-radius: 4px; font-size: 12px; }
+        .full-width { grid-column: 1 / -1; }
+        .holo-tag { color: #a855f7; font-weight: bold; }
+        .public-tag { color: #38bdf8; font-weight: bold; }
+        .dm-tag { color: #ec4899; font-weight: bold; }
+        .node-list { font-size: 11px; color: #34d399; height: 80px; overflow-y: auto; margin: 0; padding: 5px; background: #020617; border-radius: 4px; }
+        .tool-btn { background: #1e293b; border: 1px solid #334155; color: #38bdf8; padding: 2px 6px; font-size: 11px; cursor: pointer; border-radius: 3px; }
+        .tool-btn:hover { background: #334155; }
+        .tabs { display: flex; gap: 5px; margin-bottom: 10px; flex-wrap: wrap; }
+        .tab-btn { background: #1e293b; border: 1px solid #334155; color: #94a3b8; flex: 1; min-width: 110px; padding: 6px; font-size: 12px; cursor: pointer; border-radius: 4px; text-align: center; font-weight: bold; }
+        .tab-btn.active { background: #0d9488; color: #fff; border-color: #2dd4bf; }
+        .tab-content { display: none; }
+        .tab-content.active { display: block; }
+        .video-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+        video { width: 100%; height: 130px; background: #000; border: 1px solid #334155; border-radius: 4px; object-fit: cover; }
+        canvas { width: 100%; height: 40px; background: #020617; border: 1px solid #1e293b; border-radius: 4px; margin-top: 5px; display: block; }
+        .qr-container { display: flex; flex-direction: column; align-items: center; justify-content: center; margin-top: 10px; background: #020617; padding: 10px; border-radius: 6px; border: 1px solid #1e293b; }
+        #qr-canvas-box { background: #fff; padding: 8px; border-radius: 4px; margin-top: 8px; min-height: 120px; display: flex; align-items: center; justify-content: center; }
+        #qr-canvas-box img { max-width: 180px; height: auto; display: block; }
+        #identity-modal, #install-banner { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(3,3,7,0.95); z-index: 9999; display: flex; align-items: center; justify-content: center; flex-direction: column; padding: 15px; box-sizing: border-box; }
+        #install-banner { background: rgba(3,3,7,0.85); z-index: 998; display: none; top: auto; bottom: 0; height: auto; padding: 15px; border-top: 1px solid #00ffcc; }
+        .modal-box { background: #0c101d; border: 1px solid #00ffcc; padding: 25px; border-radius: 8px; text-align: center; max-width: 480px; box-shadow: 0 0 20px rgba(0,255,204,0.3); }
+    </style>
+</head>
+<body>
+    <div id="identity-modal">
+        <div class="modal-box" id="modal-content-box">
+            <h3 style="color: #fff; margin-top:0;">Welcome to LostCalls!</h3>
+            <div style="font-size: 10px; color: #94a3b8; margin-bottom: 15px; text-align: left; max-height: 110px; overflow-y: auto; border: 1px solid #1e293b; padding: 8px; background: #020617; line-height: 1.3;">
+                <strong style="color: #f8fafc;">LIABILITY WAIVER & TERMS OF SERVICE:</strong><br>
+                By accessing, initializing, or utilizing LostCalls, you explicitly agree that the software, peer connections, and communication relays are provided on an "AS IS" and "AS AVAILABLE" basis without warranties of any kind. Creators and maintainers are held harmless from any liability, data losses, or claims.
+            </div>
+            <p style="font-size: 12px; color: #cbd5e1; margin-bottom: 12px;">Select your category below to accept terms and generate identity:</p>
+            <div style="display: flex; gap: 10px; justify-content: center; margin-bottom: 8px;">
+                <button onclick="generateIdentity('boy')" style="background: #3b82f6; flex: 1;">Boy / Male</button>
+                <button onclick="generateIdentity('girl')" style="background: #ec4899; flex: 1;">Girl / Female</button>
+            </div>
+            <div>
+                <button onclick="declineTerms()" style="background: #ef4444; width: 100%;">Decline & Exit</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="install-banner">
+        <div style="max-width: 500px; width: 100%; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+            <div style="font-size: 13px;">📲 Install LostCalls onto your device home screen for offline access?</div>
+            <div style="display: flex; gap: 8px;">
+                <button id="install-action-btn" style="background: #10b981; padding: 6px 14px;">Install App</button>
+                <button onclick="document.getElementById('install-banner').style.display='none'" style="background: #475569; padding: 6px 14px;">Later</button>
+            </div>
+        </div>
+    </div>
+
+    <h1>
+        <span>🌐 LostCalls — Universal Offline QR Hub</span>
+        <div style="display: flex; gap: 8px; align-items: center;">
+            <button id="header-install-btn" style="background: #10b981; font-size: 11px; padding: 4px 8px; display: none;" onclick="triggerInstallPrompt()">📲 Install App</button>
+            <span id="mode-indicator" class="status-box" style="background: #1e293b; color: #facc15;">Starting Up...</span>
+        </div>
+    </h1>
+    
+    <div class="panel full-width" style="display: flex; flex-wrap: wrap; gap: 10px; align-items: center; padding: 12px;">
+        <div>My Name: <input type="text" id="node-id" value="User" style="width: 140px;" readonly></div>
+        <div>Chat Room: <input type="text" id="chal-name" value="lobby" style="width: 100px;"></div>
+        <div>E2EE Passkey: <input type="password" id="e2ee-passkey" placeholder="Optional key" style="width: 140px;" value=""></div>
+        <button onclick="initializeHub()">Refresh Connection</button>
+        <button onclick="toggleInaudibleScanner()" id="scanner-btn" style="background: #8b5cf6;">📡 Sound Scanner: OFF</button>
+    </div>
+
+    <div class="grid">
+        <div class="panel">
+            <div class="tabs">
+                <div class="tab-btn active" onclick="switchTab('public', this)">💬 Public Chat</div>
+                <div class="tab-btn" onclick="switchTab('dm', this)">🔒 Private Message</div>
+                <div class="tab-btn" onclick="switchTab('call', this)">📹 Video Call</div>
+                <div class="tab-btn" onclick="switchTab('qr', this)">📷 Offline QR Connect</div>
+            </div>
+
+            <!-- Tab 1: Open Chat Space -->
+            <div id="tab-public" class="tab-content active">
+                <h3>Public Chat Room <button class="tool-btn" onclick="exportChatLog()">💾 Export Chat</button></h3>
+                <div id="chat-box-public" class="console"></div>
+                <div style="margin-top: 8px; display: flex; gap: 5px;">
+                    <input type="text" id="chat-input-public" placeholder="Type a message..." style="margin-top:0; flex-grow: 1;" onkeypress="handleKeyPress(event, 'public')">
+                    <input type="file" id="file-input" style="display: none;" onchange="sendFilePayload()">
+                    <button onclick="document.getElementById('file-input').click()" style="background: #3b82f6; margin-top:0;" title="Send File (Chunked)">📁</button>
+                    <button onclick="startDictation('public')" style="background: #8b5cf6; margin-top:0;" title="Voice Dictation">🎤</button>
+                    <button onclick="transmitPublicMessage()" style="margin-top:0;">Send</button>
+                </div>
+            </div>
+
+            <!-- Tab 2: Private Text Space -->
+            <div id="tab-dm" class="tab-content">
+                <h3>Private Messages</h3>
+                <div style="margin-bottom: 8px;">Recipient Name: <input type="text" id="dm-target" placeholder="Enter recipient name" style="width: 180px; margin-top:2;"></div>
+                <div id="chat-box-dm" class="console" style="height: 125px;"></div>
+                <div style="margin-top: 8px; display: flex; gap: 5px;">
+                    <input type="text" id="chat-input-dm" placeholder="Type private message..." style="margin-top:0; flex-grow: 1;" onkeypress="handleKeyPress(event, 'dm')">
+                    <button onclick="startDictation('dm')" style="background: #8b5cf6; margin-top:0;" title="Voice Dictation">🎤</button>
+                    <button onclick="transmitDirectMessage()" style="margin-top:0;">Send DM</button>
+                </div>
+            </div>
+
+            <!-- Tab 3: Video / Audio Call Space -->
+            <div id="tab-call" class="tab-content">
+                <h3>Video Call Room</h3>
+                <div style="display: flex; gap: 8px; margin-bottom: 5px;">
+                    <button onclick="startVideoCall()" style="background: #10b981; flex: 1; margin-top:0;">📞 Start Call</button>
+                    <button onclick="hangUpCall()" style="background: #ef4444; flex: 1; margin-top:0;">📴 Hang Up</button>
+                </div>
+                <div class="video-grid">
+                    <div>
+                        <div style="font-size:10px; color:#94a3b8; margin-bottom:2;">MY CAMERA</div>
+                        <video id="local-video" autoplay muted playsinline></video>
+                    </div>
+                    <div>
+                        <div style="font-size:10px; color:#94a3b8; margin-bottom:2;">FRIEND'S CAMERA</div>
+                        <video id="remote-video" autoplay playsinline></video>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tab 4: Air-Gap Offline Handshake -->
+            <div id="tab-qr" class="tab-content">
+                <h3>Universal Offline QR Connection</h3>
+                <div style="font-size: 11px; color: #94a3b8; margin-bottom: 8px;">
+                    Generate your QR code, download it as a picture, or scan/upload your friend's code.
+                </div>
+                <div style="display: flex; gap: 5px; margin-bottom: 8px; flex-wrap: wrap;">
+                    <button onclick="qrStep1GenerateOffer()" style="background: #8b5cf6; flex: 1; margin-top:0;">1️⃣ Create QR Code</button>
+                    <button onclick="qrStep2StartScanner('offer')" style="background: #3b82f6; flex: 1; margin-top:0;">2️⃣ Scan Live Camera</button>
+                    <input type="file" id="qr-file-upload" accept="image/*" style="display: none;" onchange="handleUploadedQRImage(event)">
+                    <button onclick="document.getElementById('qr-file-upload').click()" style="background: #0284c7; flex: 1; margin-top:0;">📁 Upload QR Image</button>
+                </div>
+
+                <div style="display: flex; gap: 5px; margin-bottom: 8px;">
+                    <button onclick="downloadQRImage()" style="background: #475569; flex: 1; margin-top:0; font-size: 11px;">💾 Download QR Image (.png)</button>
+                    <button onclick="qrStep3StartScanner()" style="background: #10b981; flex: 1; margin-top:0; font-size: 11px;">3️⃣ Scan Reply QR</button>
+                </div>
+
+                <div class="qr-container">
+                    <div id="qr-instructions" style="font-size: 12px; color: #38bdf8; text-align: center;">Choose a step above to connect offline.</div>
+                    <div id="qr-canvas-box">Ready for universal connection</div>
+                    <video id="qr-scanner-video" autoplay muted playsinline style="display:none; width: 100%; max-height: 180px; margin-top: 8px;"></video>
+                </div>
+            </div>
+
+            <canvas id="wave-canvas"></canvas>
+        </div>
+
+        <div>
+            <div class="panel">
+                <h3>📖 Instructions</h3>
+                <div style="font-size: 11px; color: #94a3b8; line-height: 1.4;">
+                    • <b>Public Chat:</b> Type the same chat room name to talk with friends over the internet.<br><br>
+                    • <b>Offline QR:</b> Go to <b>Offline QR Connect</b>, create your code, download it as a picture, and share it to link completely offline.<br><br>
+                    • <b>Video Calls:</b> Use the Video Call tab or QR connection to talk face-to-face.
+                </div>
+            </div>
+
+            <div class="panel">
+                <h3>🟢 Active Users</h3>
+                <div id="active-peers-box" class="node-list">Checking active users...</div>
+            </div>
+
+            <div class="panel">
+                <h3>🔊 Sound & Speech Tools</h3>
+                <button onclick="emitUltrasonicBurst()" style="width: 100%; background: #0d9488; margin-bottom: 5px;">⚡ Play Sound Pulse</button>
+                <button onclick="speakLastMessage()" style="width: 100%; background: #0284c7;">📢 Read Last Message Out Loud</button>
+            </div>
+
+            <div class="panel">
+                <h3>⚡ Activity Status</h3>
+                <div id="mesh-console" class="console" style="height: 75px; font-size: 10px;"></div>
+            </div>
+        </div>
+    </div>
+
+<script>
+    // --- PWA Manifest & Service Worker Setup ---
+    const manifestData = {
+        "name": "LostCalls",
+        "short_name": "LostCalls",
+        "start_url": "./",
+        "display": "standalone",
+        "background_color": "#030307",
+        "theme_color": "#030307",
+        "icons": [{"src": "https://cdn-icons-png.flaticon.com/512/2965/2965567.png", "sizes": "512x512", "type": "image/png"}]
+    };
+    const blobManifest = new Blob([JSON.stringify(manifestData)], {type: 'application/json'});
+    document.getElementById('pwa-manifest').href = URL.createObjectURL(blobManifest);
+
+    if ('serviceWorker' in navigator) {
+        const swCode = `
+            self.addEventListener('install', e => { self.skipWaiting(); });
+            self.addEventListener('activate', e => { clients.claim(); });
+            self.addEventListener('fetch', e => { e.respondWith(fetch(e.request).catch(() => caches.match(e.request))); });
+        `;
+        const swBlob = new Blob([swCode], { type: 'text/javascript' });
+        navigator.serviceWorker.register(URL.createObjectURL(swBlob)).catch(() => {});
+    }
+
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+        document.getElementById('install-banner').style.display = 'flex';
+        document.getElementById('header-install-btn').style.display = 'inline-block';
+    });
+
+    function triggerInstallPrompt() {
+        if (!deferredPrompt) return;
+        deferredPrompt.prompt();
+        deferredPrompt.userChoice.then((choiceResult) => {
+            if (choiceResult.outcome === 'accepted') {
+                document.getElementById('install-banner').style.display = 'none';
+                document.getElementById('header-install-btn').style.display = 'none';
+            }
+            deferredPrompt = null;
+        });
+    }
+    document.getElementById('install-action-btn').addEventListener('click', triggerInstallPrompt);
+
+    const chatBoxPublic = document.getElementById('chat-box-public');
+    const chatBoxDm = document.getElementById('chat-box-dm');
+    const modeIndicator = document.getElementById('mode-indicator');
+    const activePeersBox = document.getElementById('active-peers-box');
+    const meshConsole = document.getElementById('mesh-console');
+    const canvas = document.getElementById('wave-canvas');
+    const canvasCtx = canvas.getContext('2d');
+
+    const maleNames = ["Hermes_Loki", "Homer_Batman", "Columbo_Spock", "Flash_Yogi", "Archie_Icarus", "Beavis_Fonzie", "Gandalf_Barney", "Gomez_Waldo", "Frodo_Popeye", "Hutch_Fred", "Bugs_Tarzan", "Dracula_Snoopy", "Kermit_Sherlock", "Zorro_Matrix", "Neo_Spiderman", "Anakin_Sonic", "Garfield_Mario", "Luigi_Yoshi", "Pikachu_Batman", "Deadpool_Wolverine", "Thor_Scooby", "Odysseus_Hades", "Achilles_SpongeBob", "Goku_Vegeta", "Bender_Matrix"];
+    const femaleNames = ["Athena_Morticia", "Betty_Wonder", "Buffy_Xena", "Velma_Elvira", "Daphne_Zelda", "Cleo_Nyx", "Marge_Olive", "Jeannie_Samantha", "Wednesday_Wilma", "Pepper_Agent99", "Harley_Catwoman", "Sailor_Ahsoka", "Leia_Ripley", "Lara_Misty", "Storm_Rogue", "WonderWoman_Supergirl", "Velma_Betty", "Dora_Minerva", "Hermione_Arwen", "Katniss_Padme", "Artemis_Medusa", "Hera_Mafalda", "BettyBoop_Penny", "Sadie_Lois", "Jessica_Velma"];
+
+    let client = null;
+    let holoChannel = new BroadcastChannel('lostcalls_swarm_channel');
+    let activeNodes = new Set();
+    let seenPackets = new Set();
+    let currentTopic = "";
+    let heartbeatInterval = null;
+    let audioCtx = null;
+    let micStream = null;
+    let analyser = null;
+    let lastSpokenText = "";
+    let isScanningInaudible = false;
+    let isOnlineGlobal = false;
+    let peerConnection = null;
+    let localStream = null;
+    const rtcConfig = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+    let qrScanStream = null;
+    let qrScanInterval = null;
+    let activeQRScanMode = 'offer';
+    let incomingFileChunks = {};
+
+    window.onload = function() {
+        loadPersistentHistory();
+        checkNodeIdentity();
+    };
+
+    function loadPersistentHistory() {
+        const pubHist = localStorage.getItem('lostcalls_public_history');
+        if (pubHist) chatBoxPublic.innerHTML = pubHist;
+        const dmHist = localStorage.getItem('lostcalls_dm_history');
+        if (dmHist) chatBoxDm.innerHTML = dmHist;
+    }
+
+    function savePersistentHistory() {
+        localStorage.setItem('lostcalls_public_history', chatBoxPublic.innerHTML);
+        localStorage.setItem('lostcalls_dm_history', chatBoxDm.innerHTML);
+    }
+
+    async function deriveKey(passphrase) {
+        const enc = new TextEncoder();
+        const keyMaterial = await window.crypto.subtle.importKey("raw", enc.encode(passphrase), { name: "PBKDF2" }, false, ["deriveKey"]);
+        return window.crypto.subtle.deriveKey({ name: "PBKDF2", salt: enc.encode("LostCallsSalt"), iterations: 1000, hash: "SHA-256" }, keyMaterial, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
+    }
+
+    async function encryptMessage(text) {
+        const passkey = document.getElementById('e2ee-passkey').value;
+        if (!passkey) return text;
+        try {
+            const key = await deriveKey(passkey);
+            const iv = window.crypto.getRandomValues(new Uint8Array(12));
+            const encoded = new TextEncoder().encode(text);
+            const encrypted = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, encoded);
+            const combined = new Uint8Array(iv.length + new Uint8Array(encrypted).length);
+            combined.set(iv);
+            combined.set(new Uint8Array(encrypted), iv.length);
+            return "ENC:" + btoa(String.fromCharCode.apply(null, combined));
+        } catch(e) { return text; }
+    }
+
+    async function decryptMessage(cipherText) {
+        if (!cipherText || !cipherText.startsWith("ENC:")) return cipherText;
+        const passkey = document.getElementById('e2ee-passkey').value;
+        if (!passkey) return "[Encrypted Message - Enter Passkey]";
+        try {
+            const raw = atob(cipherText.substring(4));
+            const combined = new Uint8Array(raw.length);
+            for (let i = 0; i < raw.length; i++) combined[i] = raw.charCodeAt(i);
+            const iv = combined.slice(0, 12);
+            const data = combined.slice(12);
+            const key = await deriveKey(passkey);
+            const decrypted = await window.crypto.subtle.decrypt({ name: "AES-GCM", iv: iv }, key, data);
+            return new TextDecoder().decode(decrypted);
+        } catch(e) { return "[Decryption Failed - Invalid Passkey]"; }
+    }
+
+    function checkNodeIdentity() { document.getElementById('identity-modal').style.display = 'flex'; }
+
+    function generateIdentity(gender) {
+        let pool = gender === 'boy' ? maleNames : femaleNames;
+        let usedNames = JSON.parse(localStorage.getItem('lostcalls_used_names') || '[]');
+        let available = pool.filter(n => !usedNames.includes(n));
+        if (available.length === 0) available = pool.map(n => n + '_' + Math.floor(Math.random() * 10000));
+        let randomName = available[Math.floor(Math.random() * available.length)];
+        usedNames.push(randomName);
+        localStorage.setItem('lostcalls_used_names', JSON.stringify(usedNames));
+        document.getElementById('node-id').value = randomName;
+        document.getElementById('identity-modal').style.display = 'none';
+        initializeHub();
+    }
+
+    function declineTerms() {
+        document.getElementById('modal-content-box').innerHTML = `<h3 style="color: #ef4444; margin-top:0;">Terms Declined</h3><p style="font-size: 12px; color: #94a3b8; margin-bottom: 20px;">Access aborted.</p>`;
+    }
+
+    function switchTab(tabName, btn) {
+        stopQRScanner();
+        document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+        document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+        document.getElementById('tab-' + tabName).classList.add('active');
+        btn.classList.add('active');
+    }
+
+    function initAudioContext() { if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+
+    function drawVisualizer(analyserNode) {
+        analyser = analyserNode || audioCtx.createAnalyser();
+        analyser.fftSize = 512;
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+        function render() {
+            requestAnimationFrame(render);
+            analyser.getByteTimeDomainData(dataArray);
+            canvasCtx.fillStyle = '#020617';
+            canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+            canvasCtx.lineWidth = 2;
+            canvasCtx.strokeStyle = '#00ffcc';
+            canvasCtx.beginPath();
+            const sliceWidth = canvas.width * 1.0 / bufferLength;
+            let x = 0;
+            for (let i = 0; i < bufferLength; i++) {
+                let v = dataArray[i] / 128.0;
+                let y = v * canvas.height / 2;
+                if (i === 0) canvasCtx.moveTo(x, y); else canvasCtx.lineTo(x, y);
+                x += sliceWidth;
+            }
+            canvasCtx.lineTo(canvas.width, canvas.height / 2);
+            canvasCtx.stroke();
+        }
+        render();
+    }
+
+    holoChannel.onmessage = function(e) { handleIncomingPacket(e.data, 'LOCAL MESH'); };
+
+    function initializeHub() {
+        initAudioContext();
+        const nodeId = document.getElementById('node-id').value;
+        const channelName = document.getElementById('chal-name').value.trim() || 'lobby';
+        currentTopic = `lostcalls/room/v1/${channelName}`;
+        meshConsole.innerHTML += `> [SYS] Connecting chat room for ${nodeId}...<br>`;
+        tryConnectGlobalBroker(nodeId);
+    }
+
+    function tryConnectGlobalBroker(nodeId) {
+        if (client && client.isConnected()) client.disconnect();
+        let clientId = 'user_' + Math.random().toString(36).substr(2, 9);
+        client = new Paho.MQTT.Client("broker.hivemq.com", 8884, "/mqtt", clientId);
+
+        client.onConnectionLost = function () {
+            isOnlineGlobal = false;
+            updateStatusIndicator();
+            meshConsole.innerHTML += `> [!] Internet offline. Working locally.<br>`;
+            if (heartbeatInterval) clearInterval(heartbeatInterval);
+        };
+
+        client.onMessageArrived = function (message) {
+            try { handleIncomingPacket(JSON.parse(message.payloadString), 'ONLINE'); } catch(e) {}
+        };
+
+        client.connect({
+            useSSL: true, timeout: 3,
+            onSuccess: function () {
+                isOnlineGlobal = true;
+                updateStatusIndicator();
+                meshConsole.innerHTML += `> [SYS] Connected online to room: ${currentTopic}<br>`;
+                client.subscribe(currentTopic);
+                client.subscribe(currentTopic + '/' + nodeId);
+                sendPresencePing();
+                if (heartbeatInterval) clearInterval(heartbeatInterval);
+                heartbeatInterval = setInterval(sendPresencePing, 5000);
+            },
+            onFailure: function () {
+                isOnlineGlobal = false;
+                updateStatusIndicator();
+                meshConsole.innerHTML += `> [!] Offline Mode: Operating without internet.<br>`;
+            }
+        });
+    }
+
+    function updateStatusIndicator() {
+        if (isOnlineGlobal) {
+            modeIndicator.textContent = "ONLINE & READY";
+            modeIndicator.style.background = "#10b981";
+            modeIndicator.style.color = "#fff";
+        } else {
+            modeIndicator.textContent = "OFFLINE MODE";
+            modeIndicator.style.background = "#8b5cf6";
+            modeIndicator.style.color = "#fff";
+        }
+    }
+
+    async function handleIncomingPacket(packet) {
+        if (!packet || seenPackets.has(packet.id)) return;
+        seenPackets.add(packet.id);
+        const nodeId = document.getElementById('node-id').value;
+        if (packet.sender && packet.sender !== nodeId) {
+            activeNodes.add(packet.sender);
+            updateNodeList();
+        }
+        if (packet.type === 'ping') return;
+        if (packet.type === 'webrtc') { handleWebRTCSignaling(packet); return; }
+        if (packet.type === 'file_chunk') { handleFileChunkPacket(packet); return; }
+
+        triggerSensoryFeedback('msg');
+        let decryptedText = await decryptMessage(packet.text);
+        lastSpokenText = decryptedText;
+
+        if (packet.type === 'chat') {
+            chatBoxPublic.innerHTML += `> <span class="public-tag">[${packet.sender}]</span>: ${decryptedText}<br>`;
+            chatBoxPublic.scrollTop = chatBoxPublic.scrollHeight;
+            savePersistentHistory();
+            emitUltrasonicBurst();
+        } else if (packet.type === 'dm' && packet.recipient === nodeId) {
+            chatBoxDm.innerHTML += `> <span class="dm-tag">[Private from ${packet.sender}]</span>: ${decryptedText}<br>`;
+            chatBoxDm.scrollTop = chatBoxDm.scrollHeight;
+            savePersistentHistory();
+            emitUltrasonicBurst();
+        }
+    }
+
+    function sendPresencePing() {
+        const nodeId = document.getElementById('node-id').value;
+        dispatchPacket({ id: 'ping_' + nodeId + '_' + Date.now(), type: 'ping', sender: nodeId });
+    }
+
+    function updateNodeList() {
+        const nodeId = document.getElementById('node-id').value;
+        let listHtml = `• ${nodeId} (You)\n`;
+        for (let node of activeNodes) listHtml += `• ${node}\n`;
+        activePeersBox.innerText = listHtml;
+    }
+
+    function dispatchPacket(packet, targetSubTopic = null) {
+        seenPackets.add(packet.id);
+        if (isOnlineGlobal && client && client.isConnected()) {
+            let message = new Paho.MQTT.Message(JSON.stringify(packet));
+            message.destinationName = targetSubTopic ? currentTopic + '/' + targetSubTopic : currentTopic;
+            client.send(message);
+        }
+        holoChannel.postMessage(packet);
+    }
+
+    async function transmitPublicMessage() {
+        const input = document.getElementById('chat-input-public');
+        const nodeId = document.getElementById('node-id').value;
+        if (!input.value) return;
+        const text = input.value;
+        const encryptedText = await encryptMessage(text);
+        dispatchPacket({ id: 'msg_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now(), type: 'chat', sender: nodeId, text: encryptedText });
+        triggerSensoryFeedback('msg');
+        lastSpokenText = text;
+        emitUltrasonicBurst();
+        chatBoxPublic.innerHTML += `> <span class="public-tag">[${nodeId}]</span>: ${text}<br>`;
+        chatBoxPublic.scrollTop = chatBoxPublic.scrollHeight;
+        savePersistentHistory();
+        input.value = "";
+    }
+
+    async function transmitDirectMessage() {
+        const input = document.getElementById('chat-input-dm');
+        const targetInput = document.getElementById('dm-target');
+        const nodeId = document.getElementById('node-id').value;
+        if (!input.value || !targetInput.value) { alert("Specify recipient and message."); return; }
+        const text = input.value;
+        const recipient = targetInput.value.trim();
+        const encryptedText = await encryptMessage(text);
+        dispatchPacket({ id: 'dm_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now(), type: 'dm', sender: nodeId, recipient: recipient, text: encryptedText }, recipient);
+        triggerSensoryFeedback('msg');
+        chatBoxDm.innerHTML += `> <span class="dm-tag">[To ${recipient}]</span>: ${text}<br>`;
+        chatBoxDm.scrollTop = chatBoxDm.scrollHeight;
+        savePersistentHistory();
+        input.value = "";
+    }
+
+    function sendFilePayload() {
+        const fileInput = document.getElementById('file-input');
+        if (fileInput.files && fileInput.files[0]) {
+            const file = fileInput.files[0];
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const base64Data = e.target.result;
+                const fileId = 'file_' + Math.random().toString(36).substr(2, 9);
+                const chunkSize = 15000;
+                const totalChunks = Math.ceil(base64Data.length / chunkSize);
+                for (let i = 0; i < totalChunks; i++) {
+                    dispatchPacket({
+                        id: fileId + '_c_' + i + '_' + Date.now(),
+                        type: 'file_chunk', sender: document.getElementById('node-id').value,
+                        fileId: fileId, fileName: file.name, chunkIndex: i, totalChunks: totalChunks,
+                        chunkData: base64Data.substring(i * chunkSize, (i + 1) * chunkSize)
+                    });
+                }
+                chatBoxPublic.innerHTML += `> <span class="holo-tag">[FILE SENT]</span>: ${file.name}<br>`;
+                chatBoxPublic.scrollTop = chatBoxPublic.scrollHeight;
+                savePersistentHistory();
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function handleFileChunkPacket(packet) {
+        if (!incomingFileChunks[packet.fileId]) {
+            incomingFileChunks[packet.fileId] = { fileName: packet.fileName, totalChunks: packet.totalChunks, receivedCount: 0, chunks: [] };
+        }
+        let fObj = incomingFileChunks[packet.fileId];
+        if (!fObj.chunks[packet.chunkIndex]) { fObj.chunks[packet.chunkIndex] = packet.chunkData; fObj.receivedCount++; }
+        if (fObj.receivedCount === fObj.totalChunks) {
+            let fullBase64 = fObj.chunks.join('');
+            delete incomingFileChunks[packet.fileId];
+            chatBoxPublic.innerHTML += `> <span class="holo-tag">[FILE RECEIVED]</span><br><a href="${fullBase64}" download="${fObj.fileName}" style="color: #38bdf8;">📥 Download ${fObj.fileName}</a><br>`;
+            chatBoxPublic.scrollTop = chatBoxPublic.scrollHeight;
+            savePersistentHistory();
+        }
+    }
+
+    function startDictation(targetType) {
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!SpeechRecognition) { alert("Speech recognition not supported."); return; }
+        const recognition = new SpeechRecognition();
+        recognition.onresult = function(e) {
+            const res = e.results[0][0].transcript;
+            if (targetType === 'public') document.getElementById('chat-input-public').value = res;
+            if (targetType === 'dm') document.getElementById('chat-input-dm').value = res;
+        };
+        recognition.start();
+    }
+
+    async function startVideoCall() {
+        try {
+            localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            document.getElementById('local-video').srcObject = localStream;
+            createPeerConnection();
+            localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+            dispatchPacket({ id: 'rtc_' + Math.random(), type: 'webrtc', sender: document.getElementById('node-id').value, payload: { type: 'offer', sdp: offer } });
+        } catch(e) { alert("Camera access denied."); }
+    }
+
+    function createPeerConnection() {
+        if (peerConnection) return;
+        peerConnection = new RTCPeerConnection(rtcConfig);
+        peerConnection.ontrack = e => document.getElementById('remote-video').srcObject = e.streams[0];
+        peerConnection.onicecandidate = e => {
+            if (e.candidate) dispatchPacket({ id: 'rtc_' + Math.random(), type: 'webrtc', sender: document.getElementById('node-id').value, payload: { type: 'candidate', candidate: e.candidate } });
+        };
+    }
+
+    async function handleWebRTCSignaling(packet) {
+        if (packet.sender === document.getElementById('node-id').value) return;
+        createPeerConnection();
+        let payload = packet.payload;
+        if (payload.type === 'offer') {
+            if (!localStream) {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('local-video').srcObject = localStream;
+                localStream.getTracks().forEach(t => peerConnection.addTrack(t, localStream));
+            }
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+            dispatchPacket({ id: 'rtc_' + Math.random(), type: 'webrtc', sender: document.getElementById('node-id').value, payload: { type: 'answer', sdp: answer } });
+        } else if (payload.type === 'answer') {
+            await peerConnection.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+        } else if (payload.type === 'candidate') {
+            try { await peerConnection.addIceCandidate(new RTCIceCandidate(payload.candidate)); } catch(e) {}
+        }
+    }
+
+    function hangUpCall() {
+        if (peerConnection) { peerConnection.close(); peerConnection = null; }
+        if (localStream) { localStream.getTracks().forEach(t => t.stop()); localStream = null; }
+        document.getElementById('local-video').srcObject = null;
+        document.getElementById('remote-video').srcObject = null;
+    }
+
+    async function qrStep1GenerateOffer() {
+        stopQRScanner();
+        document.getElementById('qr-scanner-video').style.display = 'none';
+        const box = document.getElementById('qr-canvas-box');
+        box.innerHTML = '';
+        activeQRScanMode = 'offer';
+        createPeerConnection();
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+        setTimeout(() => {
+            QRCode.toDataURL(JSON.stringify(peerConnection.localDescription), { width: 220, margin: 1 }, function (err, url) {
+                const img = document.createElement('img');
+                img.src = url;
+                box.appendChild(img);
+                document.getElementById('qr-instructions').textContent = "QR Code Ready! Download or scan it.";
+            });
+        }, 300);
+    }
+
+    function downloadQRImage() {
+        const qrImg = document.querySelector('#qr-canvas-box img');
+        if (!qrImg) { alert("Generate QR code first."); return; }
+        const link = document.createElement('a');
+        link.download = `lostcalls_qr_${Date.now()}.png`;
+        link.href = qrImg.src;
+        link.click();
+    }
+
+    function qrStep2StartScanner(mode) {
+        stopQRScanner();
+        activeQRScanMode = mode;
+        const videoElem = document.getElementById('qr-scanner-video');
+        videoElem.style.display = 'block';
+        document.getElementById('qr-canvas-box').innerHTML = '';
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } })
+            .then(stream => { qrScanStream = stream; videoElem.srcObject = stream; videoElem.play(); requestAnimationFrame(scanQRFrame); })
+            .catch(() => alert("Camera access denied."));
+    }
+
+    function qrStep3StartScanner() { qrStep2StartScanner('answer'); }
+
+    function stopQRScanner() {
+        if (qrScanInterval) cancelAnimationFrame(qrScanInterval);
+        if (qrScanStream) { qrScanStream.getTracks().forEach(t => t.stop()); qrScanStream = null; }
+    }
+
+    async function scanQRFrame() {
+        const videoElem = document.getElementById('qr-scanner-video');
+        if (videoElem.readyState === videoElem.HAVE_ENOUGH_DATA) {
+            const canvas = document.createElement('canvas');
+            canvas.width = videoElem.videoWidth; canvas.height = videoElem.videoHeight;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(videoElem, 0, 0, canvas.width, canvas.height);
+            const code = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
+            if (code) { stopQRScanner(); processScannedData(code.data, activeQRScanMode); return; }
+        }
+        qrScanInterval = requestAnimationFrame(scanQRFrame);
+    }
+
+    function handleUploadedQRImage(event) {
+        const file = event.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            const img = new Image();
+            img.onload = function() {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width; canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0);
+                const code = jsQR(ctx.getImageData(0, 0, canvas.width, canvas.height).data, canvas.width, canvas.height);
+                if (code) processScannedData(code.data, activeQRScanMode);
+                else alert("No valid QR found.");
+            };
+            img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+    }
+
+    async function processScannedData(dataStr, mode) {
+        try {
+            const parsedData = JSON.parse(dataStr);
+            if (mode === 'offer') {
+                createPeerConnection();
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(parsedData));
+                const answer = await peerConnection.createAnswer();
+                await peerConnection.setLocalDescription(answer);
+                setTimeout(() => {
+                    activeQRScanMode = 'answer';
+                    const box = document.getElementById('qr-canvas-box');
+                    box.innerHTML = '';
+                    QRCode.toDataURL(JSON.stringify(peerConnection.localDescription), { width: 220, margin: 1 }, function (err, url) {
+                        const img = document.createElement('img');
+                        img.src = url;
+                        box.appendChild(img);
+                        document.getElementById('qr-instructions').textContent = "Reply QR Ready! Send back to friend.";
+                    });
+                }, 300);
+            } else if (mode === 'answer') {
+                await peerConnection.setRemoteDescription(new RTCSessionDescription(parsedData));
+                document.getElementById('qr-instructions').textContent = "🎉 Connected Successfully!";
+            }
+        } catch(e) { alert("Invalid QR format."); }
+    }
+
+    function emitUltrasonicBurst() {
+        initAudioContext();
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.type = 'sine';
+        let now = audioCtx.currentTime;
+        [19000, 19500, 18500].forEach((f, i) => osc.frequency.setValueAtTime(f, now + (i * 0.08)));
+        gain.gain.setValueAtTime(0.05, now);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.3);
+        osc.start(now); osc.stop(now + 0.3);
+    }
+
+    async function toggleInaudibleScanner() {
+        initAudioContext();
+        if (audioCtx.state === 'suspended') await audioCtx.resume();
+        const btn = document.getElementById('scanner-btn');
+        if (isScanningInaudible) {
+            isScanningInaudible = false;
+            if (micStream) micStream.getTracks().forEach(t => t.stop());
+            btn.style.background = '#8b5cf6';
+            btn.textContent = "📡 Sound Scanner: OFF";
+            return;
+        }
+        try {
+            micStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            let mic = audioCtx.createMediaStreamSource(micStream);
+            let an = audioCtx.createAnalyser();
+            mic.connect(an);
+            isScanningInaudible = true;
+            drawVisualizer(an);
+            btn.style.background = '#10b981';
+            btn.textContent = "📡 Sound Scanner: ACTIVE";
+        } catch(e) { alert("Microphone access required."); }
+    }
+
+    function speakText(text) {
+        if ('speechSynthesis' in window) {
+            window.speechSynthesis.cancel();
+            window.speechSynthesis.speak(new SpeechSynthesisUtterance(text));
+        }
+    }
+
+    function speakLastMessage() { if (lastSpokenText) speakText(lastSpokenText); else alert("No message."); }
+    function triggerSensoryFeedback(type) { if (navigator.vibrate) navigator.vibrate(type === 'msg' ? [30, 20, 30] : 15); }
+    function handleKeyPress(e, type) { if (e.key === 'Enter') { if (type === 'public') transmitPublicMessage(); if (type === 'dm') transmitDirectMessage(); } }
+    function exportChatLog() {
+        const blob = new Blob([chatBoxPublic.innerText], { type: 'text/plain' });
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = `lostcalls_log_${Date.now()}.txt`;
+        a.click();
+    }
+
+    canvasCtx.fillStyle = '#020617';
+    canvasCtx.fillRect(0, 0, canvas.width, canvas.height);
+</script>
+</body>
+</html>
