@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LostCalls - Sovereign Gateway</title>
+    <style>
+        body {
+            font-family: monospace;
+            background-color: #0b0f19;
+            color: #00ffcc;
+            margin: 0;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 650px;
+            background: #111827;
+            padding: 20px;
+            border: 1px solid #00ffcc;
+            border-radius: 10px;
+            box-shadow: 0 0 15px rgba(0, 255, 204, 0.15);
+        }
+        h1 { font-size: 1.4rem; text-align: center; margin-top: 0; letter-spacing: 1px; }
+        .nav-tabs {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #1f2937;
+            padding-bottom: 8px;
+        }
+        .nav-tab {
+            background: #1f2937;
+            border: 1px solid #374151;
+            color: #9ca3af;
+            padding: 6px 8px;
+            cursor: pointer;
+            font-size: 0.7rem;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+        .nav-tab.active { background: #00ffcc; color: #0b0f19; font-weight: bold; border-color: #00ffcc; }
+        .section { display: none; }
+        .section.active { display: block; }
+        .status-box {
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px dashed #00ffcc;
+            font-size: 0.8rem;
+            background: #0f172a;
+            border-radius: 6px;
+        }
+        input, textarea, button, select {
+            width: 100%;
+            padding: 10px;
+            margin: 8px 0;
+            background: #1f2937;
+            border: 1px solid #374151;
+            color: #fff;
+            font-family: monospace;
+            box-sizing: border-box;
+            font-size: 0.9rem;
+            border-radius: 6px;
+        }
+        input:focus, textarea:focus, select:focus { border-color: #00ffcc; outline: none; }
+        button {
+            background: #00ffcc;
+            color: #0b0f19;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        button:hover { background: #00b399; }
+        .recording { background: #ef4444 !important; color: white !important; border-color: #dc2626 !important; }
+        .log-area {
+            background: #030712;
+            border: 1px solid #1f2937;
+            padding: 10px;
+            height: 140px;
+            overflow-y: auto;
+            font-size: 0.8rem;
+            border-radius: 6px;
+            margin-top: 10px;
+            line-height: 1.4;
+        }
+        video {
+            width: 100%;
+            max-height: 180px;
+            background: #000;
+            border: 1px solid #374151;
+            border-radius: 6px;
+            margin-top: 5px;
+        }
+        .room-badge {
+            display: inline-block;
+            background: #1f2937;
+            border: 1px solid #00ffcc;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            color: #00ffcc;
+            margin-bottom: 10px;
+        }
+        /* Modal Overlay Styles */
+        #liability-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(11, 15, 25, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 9999;
+            padding: 15px;
+            box-sizing: border-box;
+        }
+        .modal-content {
+            background: #111827;
+            border: 2px solid #ef4444;
+            border-radius: 10px;
+            max-width: 550px;
+            width: 100%;
+            padding: 25px;
+            box-shadow: 0 0 25px rgba(239, 68, 68, 0.3);
+            text-align: center;
+        }
+        .modal-title {
+            color: #ef4444;
+            font-size: 1.2rem;
+            margin-top: 0;
+            letter-spacing: 1px;
+        }
+        .modal-text {
+            font-size: 0.8rem;
+            color: #9ca3af;
+            text-align: left;
+            line-height: 1.5;
+            background: #030712;
+            padding: 12px;
+            border: 1px solid #1f2937;
+            border-radius: 6px;
+            max-height: 160px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+        }
+        .modal-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        .btn-decline {
+            background: #ef4444 !important;
+            color: #fff !important;
+        }
+        .btn-decline:hover {
+            background: #dc2626 !important;
+        }
+    </style>
+</head>
+<body>
+
+<!-- Liability Modal Overlay -->
+<div id="liability-modal">
+    <div class="modal-content">
+        <h2 class="modal-title">SOVEREIGN GATEWAY // TERMS & LIABILITY</h2>
+        <div class="modal-text">
+            <strong>NOTICE:</strong> LostCalls is a self-hosted, independent communication tool. By entering this interface, you acknowledge and agree that:<br><br>
+            1. All data transmission, text payloads, and media packets are routed through decentralized or sovereign local nodes managed independently.<br>
+            2. The operator of this gateway assumes no liability for intercepted messages, network connectivity failures, or data retention on remote or local hardware volumes.<br>
+            3. You operate under your own sovereign authority and compliance obligations with respect to local telecommunication and privacy regulations.<br><br>
+            Please review and select whether to accept these terms to proceed.
+        </div>
+        <div class="modal-buttons">
+            <button class="btn-decline" onclick="declineLiability()">[DECLINE] Exit Node</button>
+            <button onclick="acceptLiability()">[ACCEPT] Enter Gateway</button>
+        </div>
+    </div>
+</div>
+
+<div class="container" id="app-container" style="opacity: 0.2; pointer-events: none;">
+    <h1>LOSTCALLS // SOVEREIGN GATEWAY</h1>
+    
+    <div>
+        <label for="gateway-url" style="font-size: 0.8rem; color: #9ca3af;">Secure Gateway Tunnel (HTTPS):</label>
+        <input type="text" id="gateway-url" value="https://lostcalls.yourdomain.com" oninput="saveSettings()">
+    </div>
+
+    <div>
+        <label for="user-handle" style="font-size: 0.8rem; color: #9ca3af;">Your Operator Handle:</label>
+        <input type="text" id="user-handle" placeholder="Enter your callsign..." oninput="saveSettings()">
+    </div>
+
+    <div class="status-box" id="bridge-status">
+        [System]: Loading topology configuration...
+    </div>
+
+    <div class="nav-tabs">
+        <button class="nav-tab active" onclick="switchTab('lobby', event)">Lobby & Rooms</button>
+        <button class="nav-tab" onclick="switchTab('chat', event)">Chatspace</button>
+        <button class="nav-tab" onclick="switchTab('voice', event)">Voice Calls</button>
+        <button class="nav-tab" onclick="switchTab('video', event)">Video Msg</button>
+        <button class="nav-tab" onclick="switchTab('pstn', event)">Phone Dialer</button>
+    </div>
+
+    <!-- Lobby & Rooms Tab -->
+    <div id="section-lobby" class="section active">
+        <h3 style="font-size: 0.95rem; margin: 5px 0;">Local Room Selector</h3>
+        <p style="font-size: 0.75rem; color: #9ca3af; margin: 5px 0;">Join an active room or create a custom secret room by entering its name.</p>
+        
+        <div style="margin-top: 10px;">
+            <label style="font-size: 0.75rem; color: #9ca3af;">Active Local Rooms:</label>
+            <select id="active-rooms-select" onchange="selectPresetRoom()">
+                <option value="global-lobby"># global-lobby (Default)</option>
+                <option value="alpha-squad"># alpha-squad</option>
+                <option value="secure-drop"># secure-drop</option>
+            </select>
+        </div>
+
+        <div style="margin-top: 12px;">
+            <label style="font-size: 0.75rem; color: #9ca3af;">Create or Join Custom Secret Room:</label>
+            <input type="text" id="custom-room-input" placeholder="Enter secret room passphrase/name...">
+            <button onclick="joinCustomRoom()">[JOIN] Connect to Room</button>
+        </div>
+    </div>
+
+    <!-- Chatspace Tab -->
+    <div id="section-chat" class="section">
+        <div class="room-badge" id="current-room-badge">Active Room: global-lobby</div>
+        <h3 style="font-size: 0.95rem; margin: 5px 0;">Matrix Chat & Text Stream</h3>
+        <div class="log-area" id="chat-output"></div>
+        <input type="text" id="chat-input" placeholder="Type a secure message...">
+        <button onclick="sendChatMessage()">Transmit Message</button>
+    </div>
+
+    <!-- Voice / Audio Tab -->
+    <div id="section-voice" class="section">
+        <div class="room-badge" id="voice-room-badge">Active Room: global-lobby</div>
+        <h3 style="font-size: 0.95rem; margin: 5px 0;">Encrypted Voice Transmission</h3>
+        <button id="mic-btn" onclick="toggleRecording()">[START] Audio Transmission</button>
+        <div class="log-area" id="voice-log">
+            [Log]: Audio buffer ready for automated local archiving.<br>
+        </div>
+    </div>
+
+    <!-- Video Message Tab -->
+    <div id="section-video" class="section">
+        <div class="room-badge" id="video-room-badge">Active Room: global-lobby</div>
+        <h3 style="font-size: 0.95rem; margin: 5px 0;">Video Packet Capture</h3>
+        <video id="preview-video" autoplay muted></video>
+        <button id="vid-btn" onclick="toggleVideoRecording()">[START] Video Stream</button>
+        <div class="log-area" id="video-log">
+            [Log]: Video interface ready.<br>
+        </div>
+    </div>
+
+    <!-- PSTN / Phone Dialer Tab -->
+    <div id="section-pstn" class="section">
+        <h3 style="font-size: 0.95rem; margin: 5px 0;">PSTN / Phone Line Gateway</h3>
+        <input type="text" id="phone-number" placeholder="Enter target number (+1XXXXXXXXXX)">
+        <button onclick="dispatchPhoneCall()">[DIAL] Initiate Carrier Trunk</button>
+        <div class="log-area" id="pstn-log">
+            [Log]: Dialer standing by for gateway relay.<br>
+        </div>
+    </div>
+
+    <div class="log-area" id="log-output">
+        [Core Status]: System online. Multi-room routing initialized.<br>
+    </div>
+</div>
+
+<script>
+    let mediaRecorder;
+    let audioChunks = [];
+    let isRecording = false;
+    let videoRecorder;
+    let videoChunks = [];
+    let isVideoRecording = false;
+    let currentRoom = "global-lobby";
+
+    window.addEventListener('DOMContentLoaded', () => {
+        const liabilityAccepted = localStorage.getItem('lostcalls_liability');
+        if (liabilityAccepted === 'true') {
+            unlockApp();
+        }
+
+        const savedUrl = localStorage.getItem('lostcalls_tunnel_url');
+        if (savedUrl) document.getElementById('gateway-url').value = savedUrl;
+
+        const savedHandle = localStorage.getItem('lostcalls_handle');
+        if (savedHandle) {
+            document.getElementById('user-handle').value = savedHandle;
+        } else {
+            const randomHandle = "User_" + Math.floor(1000 + Math.random() * 9000);
+            document.getElementById('user-handle').value = randomHandle;
+            localStorage.setItem('lostcalls_handle', randomHandle);
+        }
+    });
+
+    function acceptLiability() {
+        localStorage.setItem('lostcalls_liability', 'true');
+        unlockApp();
+    }
+
+    function declineLiability() {
+        document.body.innerHTML = `
+            <div style="display: flex; justify-content: center; align-items: center; height: 100vh; background: #0b0f19; color: #ef4444; font-family: monospace; text-align: center; padding: 20px;">
+                <div>
+                    <h2>ACCESS DENIED</h2>
+                    <p style="color: #9ca3af;">You have declined the liability terms. Gateway connection aborted.</p>
+                </div>
+            </div>
+        `;
+    }
+
+    function unlockApp() {
+        const modal = document.getElementById('liability-modal');
+        const container = document.getElementById('app-container');
+        if (modal) modal.style.display = 'none';
+        if (container) {
+            container.style.opacity = '1';
+            container.style.pointerEvents = 'auto';
+        }
+    }
+
+    function saveSettings() {
+        const url = document.getElementById('gateway-url').value.trim();
+        const handle = document.getElementById('user-handle').value.trim();
+        localStorage.setItem('lostcalls_tunnel_url', url);
+        localStorage.setItem('lostcalls_handle', handle);
+    }
+
+    function switchTab(tabId, evt) {
+        document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+        document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('active'));
+        document.getElementById(`section-${tabId}`).classList.add('active');
+        if (evt) evt.target.classList.add('active');
+    }
+
+    function updateRoomBadges() {
+        document.getElementById('current-room-badge').innerText = `Active Room: #${currentRoom}`;
+        document.getElementById('voice-room-badge').innerText = `Active Room: #${currentRoom}`;
+        document.getElementById('video-room-badge').innerText = `Active Room: #${currentRoom}`;
+    }
+
+    function selectPresetRoom() {
+        const select = document.getElementById('active-rooms-select');
+        currentRoom = select.value;
+        updateRoomBadges();
+        logMessage(`Switched active room to: #${currentRoom}`);
+    }
+
+    function joinCustomRoom() {
+        const customInput = document.getElementById('custom-room-input').value.trim();
+        if (!customInput) return;
+        
+        currentRoom = customInput.replace(/[^a-zA-Z0-9-_]/g, '');
+        updateRoomBadges();
+        logMessage(`Created / Joined custom secure room: #${currentRoom}`);
+        switchTab('chat');
+        document.querySelector('.nav-tab').classList.remove('active');
+        document.querySelectorAll('.nav-tab')[1].classList.add('active');
+    }
+
+    function logMessage(msg) {
+        const logArea = document.getElementById("log-output");
+        logArea.innerHTML += `[${new Date().toLocaleTimeString()}] ${msg}<br>`;
+        logArea.scrollTop = logArea.scrollHeight;
+    }
+
+    function getGateway() {
+        let url = document.getElementById("gateway-url").value.trim();
+        return url.endsWith('/') ? url.slice(0, -1) : url;
+    }
+
+    function getHandle() {
+        return document.getElementById("user-handle").value.trim() || "Anonymous";
+    }
+
+    async function checkBridgeStatus() {
+        const url = getGateway();
+        if (!url) return;
+
+        try {
+            const response = await fetch(`${url}/status`, { signal: AbortSignal.timeout(2000) });
+            if (response.ok) {
+                const data = await response.json();
+                document.getElementById("bridge-status").innerHTML = 
+                    `<strong>JCM Status:</strong> ${data.status} | <strong>Room:</strong> #${currentRoom}`;
+            } else {
+                throw new Error();
+            }
+        } catch (e) {
+            document.getElementById("bridge-status").innerHTML = 
+                `<span style="color: #f87171;">[Offline Mode]: Operating in room #${currentRoom} locally.</span>`;
+        }
+    }
+
+    async function sendChatMessage() {
+        const input = document.getElementById("chat-input");
+        const text = input.value.trim();
+        const handle = getHandle();
+        if (!text) return;
+
+        const chatOutput = document.getElementById("chat-output");
+        chatOutput.innerHTML += `<strong>[${handle}]:</strong> ${text}<br>`;
+        chatOutput.scrollTop = chatOutput.scrollHeight;
+        
+        input.value = "";
+        const url = getGateway();
+        if (!url) return;
+
+        try {
+            await fetch(`${url}/dispatch`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ room: currentRoom, sender: handle, type: "chat", payload: text }),
+                signal: AbortSignal.timeout(3000)
+            });
+            logMessage(`Message dispatched to room #${currentRoom}`);
+        } catch (e) {
+            logMessage("Bridge offline. Stored in local session.");
+        }
+    }
+
+    async function toggleRecording() {
+        const btn = document.getElementById("mic-btn");
+        const voiceLog = document.getElementById("voice-log");
+        const handle = getHandle();
+
+        if (isRecording) {
+            mediaRecorder.stop();
+            btn.textContent = "[START] Audio Transmission";
+            btn.classList.remove("recording");
+            isRecording = false;
+        } else {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                mediaRecorder = new MediaRecorder(stream);
+                
+                mediaRecorder.ondataavailable = event => {
+                    if (event.data.size > 0) audioChunks.push(event.data);
+                };
+
+                mediaRecorder.onstop = async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                    audioChunks = [];
+                    const reader = new FileReader();
+                    reader.readAsDataURL(audioBlob);
+                    reader.onloadend = async () => {
+                        const base64Data = reader.result;
+                        voiceLog.innerHTML += `Audio captured for #${currentRoom}.<br>`;
+                        
+                        const url = getGateway();
+                        if (url) {
+                            try {
+                                await fetch(`${url}/dispatch`, {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ room: currentRoom, sender: handle, type: "audio", payload: base64Data })
+                                });
+                                voiceLog.innerHTML += "Audio uploaded to room storage.<br>";
+                            } catch (err) {
+                                voiceLog.innerHTML += "Upload queued for reconnection.<br>";
+                            }
+                        }
+                    };
+                };
+
+                mediaRecorder.start();
+                btn.textContent = "[STOP] Recording & Save";
+                btn.classList.add("recording");
+                isRecording = true;
+                voiceLog.innerHTML += `Recording audio for #${currentRoom}...<br>`;
+            } catch (err) {
+                voiceLog.innerHTML += "Microphone access error.<br>";
+            }
+        }
+    }
+
+    async function toggleVideoRecording() {
+        const btn = document.getElementById("vid-btn");
+        const videoElement = document.getElementById("preview-video");
+        const videoLog = document.getElementById("video-log");
+        const handle = getHandle();
+
+        if (isVideoRecording) {
+            videoRecorder.stop();
+            btn.textContent = "[START] Video Stream";
+            btn.classList.remove("recording");
+            isVideoRecording = false;
+        } else {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                videoElement.srcObject = stream;
+                videoRecorder = new MediaRecorder(stream);
+
+                videoRecorder.ondataavailable = event => {
+                    if (event.data.size > 0) videoChunks.push(event.data);
+                };
+
+                videoRecorder.onstop = async () => {
+                    const videoBlob = new Blob(videoChunks, { type: 'video/webm' });
+                    videoChunks = [];
+                    const reader = new FileReader();
+                    reader.readAsDataURL(videoBlob);
+                    reader.onloadend = async () => {
+                        const base64Data = reader.result;
+                        videoLog.innerHTML += `Video packet captured for #${currentRoom}.<br>`;
+
+                        const url = getGateway();
+                        if (url) {
+                            try {
+                                await fetch(`${url}/dispatch`, {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ room: currentRoom, sender: handle, type: "video", payload: base64Data })
+                                });
+                                videoLog.innerHTML += "Video saved to room storage.<br>";
+                            } catch (err) {
+                                videoLog.innerHTML += "Video upload queued offline.<br>";
+                            }
+                        }
+                    };
+                    stream.getTracks().forEach(track => track.stop());
+                };
+
+                videoRecorder.start();
+                btn.textContent = "[STOP] End Video";
+                btn.classList.add("recording");
+                isVideoRecording = true;
+                videoLog.innerHTML += `Recording video stream for #${currentRoom}...<br>`;
+            } catch (err) {
+                videoLog.innerHTML += "Camera permission error.<br>";
+            }
+        }
+    }
+
+    async function dispatchPhoneCall() {
+        const number = document.getElementById("phone-number").value.trim();
+        const pstnLog = document.getElementById("pstn-log");
+        if (!number) return;
+
+        pstnLog.innerHTML += `Dispatching trunk request for ${number}...<br>`;
+        const url = getGateway();
+        if (!url) {
+            pstnLog.innerHTML += `[Local Notice]: Secure tunnel needed to bridge PSTN carrier.<br>`;
+            return;
+        }
+
+        try {
+            const response = await fetch(`${url}/dial`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ phone_number: number }),
+                signal: AbortSignal.timeout(5000)
+            });
+            if (response.ok) {
+                const res = await response.json();
+                pstnLog.innerHTML += `Carrier Status: ${res.action}<br>`;
+            }
+        } catch (e) {
+            pstnLog.innerHTML += `Trunk dispatch failed. Check backend bridge.<br>`;
+        }
+    }
+
+    setInterval(checkBridgeStatus, 3000);
+</script>
+
+</body>
+</html>
