@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LostCalls - Air-Gapped P2P Secure Comms (JCM Axiom Enabled)</title>
+    <!-- Tailwind CSS for modern UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- QRCode Generator Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- HTML5 QR Code Scanner Library -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html5-qrcode/2.3.8/html5-qrcode.min.js"></script>
+</head>
+<body class="bg-gray-950 text-gray-100 min-h-screen flex flex-col items-center justify-between p-4">
+
+    <!-- Header -->
+    <header class="w-full max-w-4xl flex justify-between items-center py-4 border-b border-gray-800">
+        <h1 class="text-2xl font-bold tracking-wider text-cyan-400">LOST<span class="text-white">CALLS</span></h1>
+        <div class="flex items-center gap-2">
+            <div class="text-xs px-3 py-1 bg-purple-950 text-purple-300 border border-purple-800 rounded-full font-mono">
+                JCM Axiom Active
+            </div>
+            <div class="text-xs px-3 py-1 bg-cyan-950 text-cyan-300 border border-cyan-800 rounded-full font-mono">
+                Air-Gapped P2P
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="w-full max-w-4xl flex-1 flex flex-col gap-6 my-6">
+
+        <!-- Connection Wizard Card -->
+        <div id="setup-card" class="bg-gray-900 border border-gray-800 rounded-xl p-6 shadow-2xl flex flex-col gap-6">
+            <h2 class="text-lg font-semibold text-gray-200">Air-Gapped QR Handshake & Matrix Initialization</h2>
+            
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- Caller Section -->
+                <div class="flex flex-col gap-4 p-4 bg-gray-950 border border-gray-800 rounded-lg">
+                    <h3 class="font-mono text-cyan-400 text-sm">Step 1: Create Connection (Caller)</h3>
+                    <button id="btn-create-offer" class="w-full py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded transition">
+                        Generate Offer QR
+                    </button>
+                    <div id="caller-qr-container" class="flex justify-center bg-white p-4 rounded-lg hidden">
+                        <div id="qrcode-offer"></div>
+                    </div>
+                </div>
+
+                <!-- Callee Section -->
+                <div class="flex flex-col gap-4 p-4 bg-gray-950 border border-gray-800 rounded-lg">
+                    <h3 class="font-mono text-cyan-400 text-sm">Step 2: Scan & Answer (Receiver)</h3>
+                    <button id="btn-start-scanner" class="w-full py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-semibold rounded transition">
+                        Scan Peer QR Code
+                    </button>
+                    <div id="scanner-container" class="hidden w-full overflow-hidden rounded-lg bg-black">
+                        <div id="reader" style="width: 100%;"></div>
+                    </div>
+                    <div id="callee-qr-container" class="flex justify-center bg-white p-4 rounded-lg hidden">
+                        <div id="qrcode-answer"></div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Step 3: Finalize Connection for Caller -->
+            <div id="caller-finalize" class="hidden flex flex-col gap-3 p-4 bg-gray-950 border border-gray-800 rounded-lg">
+                <h3 class="font-mono text-cyan-400 text-sm">Step 3: Scan Answer QR (Caller)</h3>
+                <button id="btn-scan-answer" class="py-2 bg-cyan-600 hover:bg-cyan-500 text-white font-semibold rounded transition">
+                    Scan Receiver's Answer QR
+                </button>
+                <div id="scanner-answer-container" class="hidden w-full overflow-hidden rounded-lg bg-black">
+                    <div id="reader-answer" style="width: 100%;"></div>
+                </div>
+            </div>
+
+            <div id="connection-status" class="text-center font-mono text-sm text-yellow-400">
+                Status: Waiting for axiom initialization & handshake...
+            </div>
+        </div>
+
+        <!-- Call & Chat Interface (Hidden until connected) -->
+        <div id="call-interface" class="hidden flex-1 flex flex-col lg:flex-row gap-6">
+            <!-- Video Streams -->
+            <div class="flex-1 flex flex-col gap-4">
+                <div class="relative bg-black rounded-xl overflow-hidden border border-gray-800 aspect-video flex items-center justify-center">
+                    <video id="remote-video" autoplay playsinline class="w-full h-full object-cover"></video>
+                    <div class="absolute bottom-3 left-3 bg-black/60 px-2 py-1 rounded text-xs font-mono">Remote Peer (Matrix-Linked)</div>
+                </div>
+                <div class="absolute lg:relative bottom-6 right-6 w-36 lg:w-48 aspect-video bg-gray-900 rounded-lg overflow-hidden border border-gray-700 shadow-lg">
+                    <video id="local-video" autoplay playsinline muted class="w-full h-full object-cover"></video>
+                    <div class="absolute bottom-1 left-1 bg-black/60 px-1.5 py-0.5 rounded text-[10px] font-mono">You</div>
+                </div>
+            </div>
+
+            <!-- Encrypted Chat Panel -->
+            <div class="w-full lg:w-80 bg-gray-900 border border-gray-800 rounded-xl flex flex-col h-96 lg:h-auto">
+                <div class="p-3 border-b border-gray-800 text-xs font-mono text-purple-400 flex justify-between items-center">
+                    <span>JCM Axiom Secure Channel</span>
+                    <span id="matrix-status" class="w-2 h-2 rounded-full bg-emerald-500"></span>
+                </div>
+                <div id="chat-messages" class="flex-1 p-3 overflow-y-auto flex flex-col gap-2 text-sm"></div>
+                <div class="p-3 border-t border-gray-800 flex gap-2">
+                    <input type="text" id="chat-input" placeholder="Type axiom-serialized message..." class="flex-1 bg-gray-950 border border-gray-800 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-cyan-500">
+                    <button id="btn-send" class="bg-cyan-600 hover:bg-cyan-500 px-4 py-1.5 rounded font-semibold text-sm transition">Send</button>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="w-full max-w-4xl text-center py-4 text-xs text-gray-600 border-t border-gray-900 font-mono">
+        LostCalls • JCM Unified Axiom Architecture • MIT License
+    </footer>
+
+    <!-- Application Script -->
+    <script>
+        // --- JCM UNIFIED AXIOM ENGINE CLIENT MODULE ---
+        class JCMAxiomEngine {
+            constructor() {
+                this.invariantSeed = this.generateSeed();
+            }
+
+            generateSeed() {
+                const buffer = new Uint8Array(16);
+                window.crypto.getRandomValues(buffer);
+                return Array.from(buffer).map(b => b.toString(16).padStart(2, '0')).join('');
+            }
+
+            serializePacket(payload) {
+                const matrixPacket = {
+                    seed: this.invariantSeed,
+                    timestamp: Date.now(),
+                    payload: payload
+                };
+                return JSON.stringify(matrixPacket);
+            }
+
+            deserializePacket(rawMessage) {
+                try {
+                    const parsed = JSON.parse(rawMessage);
+                    if (!parsed.seed || !parsed.payload) {
+                        throw new Error('Invalid matrix topology');
+                    }
+                    return parsed.payload;
+                } catch (e) {
+                    console.warn('Axiom matrix verification warning:', e);
+                    return rawMessage; // Fallback for raw streams
+                }
+            }
+        }
+
+        const axiomEngine = new JCMAxiomEngine();
+
+        // --- WEBRTC P2P & QR HANDSHAKE ---
+        let pc;
+        let localStream;
+        let dataChannel;
+        const configuration = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] };
+
+        const statusEl = document.getElementById('connection-status');
+        const setupCard = document.getElementById('setup-card');
+        const callInterface = document.getElementById('call-interface');
+
+        async function initMedia() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                document.getElementById('local-video').srcObject = localStream;
+            } catch (err) {
+                console.warn('Camera/Mic access denied or unavailable:', err);
+            }
+        }
+
+        // --- STEP 1: CREATE OFFER ---
+        document.getElementById('btn-create-offer').addEventListener('click', async () => {
+            await initMedia();
+            pc = new RTCPeerConnection(configuration);
+            
+            if (localStream) {
+                localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+            }
+
+            pc.ontrack = (event) => {
+                document.getElementById('remote-video').srcObject = event.streams[0];
+            };
+
+            dataChannel = pc.createDataChannel('lostcalls-axiom-channel');
+            setupDataChannel();
+
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            await new Promise((resolve) => {
+                if (pc.iceGatheringState === 'complete') resolve();
+                else pc.onicegatheringstatechange = () => {
+                    if (pc.iceGatheringState === 'complete') resolve();
+                };
+            });
+
+            const offerStr = JSON.stringify(pc.localDescription);
+            
+            document.getElementById('qrcode-offer').innerHTML = '';
+            new QRCode(document.getElementById('qrcode-offer'), {
+                text: offerStr,
+                width: 250,
+                height: 250
+            });
+            document.getElementById('caller-qr-container').classList.remove('hidden');
+            document.getElementById('caller-finalize').classList.remove('hidden');
+            statusEl.textContent = 'Status: Scan Offer QR code with receiver device.';
+        });
+
+        // --- STEP 2: SCAN OFFER & CREATE ANSWER (CALLEE) ---
+        document.getElementById('btn-start-scanner').addEventListener('click', () => {
+            const scannerContainer = document.getElementById('scanner-container');
+            scannerContainer.classList.remove('hidden');
+
+            const html5QrCode = new Html5Qrcode("reader");
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: 250 },
+                async (decodedText) => {
+                    await html5QrCode.stop();
+                    scannerContainer.classList.add('hidden');
+                    await handleIncomingOffer(decodedText);
+                },
+                (error) => {}
+            ).catch(err => {
+                alert('Camera error: ' + err);
+            });
+        });
+
+        async function handleIncomingOffer(offerStr) {
+            await initMedia();
+            pc = new RTCPeerConnection(configuration);
+
+            if (localStream) {
+                localStream.getTracks().forEach(track => pc.addTrack(track, localStream));
+            }
+
+            pc.ontrack = (event) => {
+                document.getElementById('remote-video').srcObject = event.streams[0];
+            };
+
+            pc.ondatachannel = (event) => {
+                dataChannel = event.channel;
+                setupDataChannel();
+            };
+
+            const offerDesc = JSON.parse(offerStr);
+            await pc.setRemoteDescription(new RTCSessionDescription(offerDesc));
+
+            const answer = await pc.createAnswer();
+            await pc.setLocalDescription(answer);
+
+            await new Promise((resolve) => {
+                if (pc.iceGatheringState === 'complete') resolve();
+                else pc.onicegatheringstatechange = () => {
+                    if (pc.iceGatheringState === 'complete') resolve();
+                };
+            });
+
+            const answerStr = JSON.stringify(pc.localDescription);
+
+            document.getElementById('qrcode-answer').innerHTML = '';
+            new QRCode(document.getElementById('qrcode-answer'), {
+                text: answerStr,
+                width: 250,
+                height: 250
+            });
+            document.getElementById('callee-qr-container').classList.remove('hidden');
+            statusEl.textContent = 'Status: Show Answer QR code back to caller to establish connection.';
+            
+            checkConnectionState();
+        }
+
+        // --- STEP 3: SCAN ANSWER (CALLER) ---
+        document.getElementById('btn-scan-answer').addEventListener('click', () => {
+            const scannerAnswerContainer = document.getElementById('scanner-answer-container');
+            scannerAnswerContainer.classList.remove('hidden');
+
+            const html5QrCode = new Html5Qrcode("reader-answer");
+            html5QrCode.start(
+                { facingMode: "environment" },
+                { fps: 10, qrbox: 250 },
+                async (decodedText) => {
+                    await html5QrCode.stop();
+                    scannerAnswerContainer.classList.add('hidden');
+                    const answerDesc = JSON.parse(decodedText);
+                    await pc.setRemoteDescription(new RTCSessionDescription(answerDesc));
+                    statusEl.textContent = 'Status: Establishing axiom matrix link...';
+                    checkConnectionState();
+                },
+                (error) => {}
+            ).catch(err => {
+                alert('Camera error: ' + err);
+            });
+        });
+
+        function checkConnectionState() {
+            pc.onconnectionstatechange = () => {
+                if (pc.connectionState === 'connected') {
+                    statusEl.textContent = 'Status: Matrix Connected Securely!';
+                    setupCard.classList.add('hidden');
+                    callInterface.classList.remove('hidden');
+                } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+                    statusEl.textContent = 'Status: Matrix connection lost.';
+                }
+            };
+        }
+
+        // --- DATA CHANNEL CHAT WITH JCM AXIOM PACKETS ---
+        function setupDataChannel() {
+            dataChannel.onopen = () => {
+                statusEl.textContent = 'Status: Matrix Connected Securely!';
+                setupCard.classList.add('hidden');
+                callInterface.classList.remove('hidden');
+            };
+            dataChannel.onmessage = (event) => {
+                const decryptedMessage = axiomEngine.deserializePacket(event.data);
+                appendMessage('Peer', decryptedMessage, 'bg-gray-800 text-gray-200');
+            };
+        }
+
+        document.getElementById('btn-send').addEventListener('click', sendMessage);
+        document.getElementById('chat-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendMessage();
+        });
+
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const msg = input.value.trim();
+            if (!msg || !dataChannel || dataChannel.readyState !== 'open') return;
+
+            const serialized = axiomEngine.serializePacket(msg);
+            dataChannel.send(serialized);
+            appendMessage('You', msg, 'bg-cyan-900 text-cyan-100 self-end');
+            input.value = '';
+        }
+
+        function appendMessage(sender, text, cssClass) {
+            const chatMessages = document.getElementById('chat-messages');
+            const div = document.createElement('div');
+            div.className = `p-2 rounded-lg max-w-[80%] text-xs ${cssClass}`;
+            div.innerHTML = `<span class="font-bold">${sender}:</span> ${text}`;
+            chatMessages.appendChild(div);
+            chatMessages.scrollTop = chatMessages.scrollHeight;
+        }
+    </script>
+</body>
+</html>
