@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LostCalls......A ChatSpace Community</title>
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --surface-color: #111827;
+            --surface-hover: #1f2937;
+            --border-color: #374151;
+            --text-color: #f3f4f6;
+            --text-muted: #9ca3af;
+            --accent-color: #3b82f6;
+            --accent-hover: #2563eb;
+            --danger-color: #ef4444;
+            --success-color: #10b981;
+            --pulse-color: #8b5cf6;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+        }
+
+        /* Onboarding Overlay */
+        #onboardingOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(11, 15, 25, 0.95);
+            z-index: 1000;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .modal {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 30px;
+            width: 450px;
+            max-width: 90vw;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal h2 {
+            margin-bottom: 10px;
+            color: #ffffff;
+            font-size: 1.5rem;
+        }
+
+        .modal h2 span {
+            font-size: 0.85rem;
+            color: var(--accent-color);
+            display: block;
+            margin-top: 4px;
+        }
+
+        .modal p {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            margin-bottom: 15px;
+            line-height: 1.4;
+        }
+
+        .form-group {
+            margin-bottom: 15px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 10px;
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-color);
+            border-radius: 6px;
+            font-size: 0.95rem;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+        }
+
+        .checkbox-group input {
+            margin-top: 3px;
+        }
+
+        /* Main App Layout */
+        sidebar {
+            width: 310px;
+            background-color: var(--surface-color);
+            border-right: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            padding: 15px;
+            height: 100vh;
+            gap: 10px;
+            overflow-y: auto;
+        }
+
+        .brand {
+            font-size: 1.1rem;
+            font-weight: bold;
+            color: #ffffff;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        .brand span.sub {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-weight: normal;
+        }
+
+        .user-badge {
+            background: var(--bg-color);
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 0.85rem;
+        }
+
+        .user-badge strong {
+            color: var(--accent-color);
+            display: block;
+            font-size: 1rem;
+            margin-top: 2px;
+        }
+
+        .nav-section {
+            margin-bottom: 5px;
+        }
+
+        .nav-section label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        .room-list, .user-list, .lost-calls-list, .missed-list {
+            flex: 1;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            background: var(--bg-color);
+            max-height: 110px;
+        }
+
+        .room-item, .user-item, .lost-item, .missed-item {
+            padding: 6px 10px;
+            font-size: 0.85rem;
+            cursor: pointer;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .room-item:hover, .user-item:hover {
+            background: var(--surface-hover);
+        }
+
+        .room-item.active {
+            background: var(--accent-color);
+            color: #fff;
+            font-weight: bold;
+        }
+
+        button {
+            width: 100%;
+            padding: 10px;
+            background-color: var(--accent-color);
+            border: none;
+            color: #ffffff;
+            border-radius: 6px;
+            font-weight: bold;
+            cursor: pointer;
+            font-size: 0.95rem;
+        }
+
+        button:hover {
+            background-color: var(--accent-hover);
+        }
+
+        .btn-secondary {
+            background-color: var(--surface-hover);
+            border: 1px solid var(--border-color);
+            margin-top: 4px;
+        }
+
+        /* Main Workspace */
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+        }
+
+        header {
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border-color);
+            background-color: var(--surface-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-title-wrapper {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
+
+        /* Resonance Pulse Wave */
+        .resonance-pulse {
+            font-size: 0.7rem;
+            color: var(--pulse-color);
+            letter-spacing: 0.1em;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .pulse-dot {
+            width: 6px;
+            height: 6px;
+            background-color: var(--pulse-color);
+            border-radius: 50%;
+            box-shadow: 0 0 8px var(--pulse-color);
+            animation: pulseWave 1.5s infinite;
+        }
+
+        @keyframes pulseWave {
+            0% { transform: scale(0.95); opacity: 0.5; }
+            50% { transform: scale(1.3); opacity: 1; box-shadow: 0 0 12px var(--pulse-color); }
+            100% { transform: scale(0.95); opacity: 0.5; }
+        }
+
+        .call-controls {
+            display: flex;
+            gap: 10px;
+        }
+
+        .call-btn {
+            padding: 6px 12px;
+            font-size: 0.85rem;
+            width: auto;
+        }
+
+        .chat-container {
+            flex: 1;
+            padding: 20px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .message {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 10px;
+            line-height: 1.4;
+            font-size: 0.95rem;
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+        }
+
+        .message.self {
+            background: #1d4ed8;
+            border-color: #2563eb;
+            align-self: flex-end;
+        }
+
+        .message img {
+            max-width: 100%;
+            border-radius: 6px;
+            margin-top: 8px;
+        }
+
+        .meta {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+            display: flex;
+            justify-content: space-between;
+            gap: 15px;
+        }
+
+        /* Input Bar */
+        .input-bar {
+            padding: 15px 20px;
+            background-color: var(--surface-color);
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        input[type="text"] {
+            flex: 1;
+            padding: 12px;
+            background-color: var(--bg-color);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            color: var(--text-color);
+            font-size: 0.95rem;
+        }
+
+        input[type="file"] {
+            display: none;
+        }
+
+        .file-upload-btn {
+            background: var(--surface-hover);
+            border: 1px solid var(--border-color);
+            padding: 11px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1.1rem;
+        }
+
+        /* Media Modal / View */
+        #mediaModal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0,0,0,0.85);
+            z-index: 500;
+            display: none;
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        video {
+            width: 600px;
+            max-width: 90vw;
+            border-radius: 12px;
+            border: 2px solid var(--border-color);
+            background: #000;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Onboarding Liability & Identity Modal -->
+    <div id="onboardingOverlay">
+        <div class="modal">
+            <h2>LostCalls <span>A ChatSpace Community</span></h2>
+            <p>You are entering the secure decentralized network via <strong>callspace.run.place</strong>. Complete your credentials to generate your unique identity.</p>
+            
+            <div class="form-group">
+                <label>Age</label>
+                <input type="number" id="inputAge" min="13" max="120" placeholder="Enter your age">
+            </div>
+
+            <div class="form-group">
+                <label>Gender</label>
+                <select id="inputGender">
+                    <option value="Male">Male</option>
+                    <option value="Female">Female</option>
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label>City & State / Country of Residence</label>
+                <input type="text" id="inputLocation" placeholder="e.g., San Antonio, TX">
+            </div>
+
+            <div class="checkbox-group">
+                <input type="checkbox" id="checkLiability">
+                <label for="checkLiability">I accept the binding Liability Contract, agreeing to decentralized protocol terms, lawful data transmission, and mesh node standards.</label>
+            </div>
+
+            <button onclick="completeOnboarding()">Generate Identity & Enter</button>
+        </div>
+    </div>
+
+    <!-- Media Call Modal (Voice / Video) -->
+    <div id="mediaModal">
+        <h2 id="callTitle" style="color:#fff;">Active Secure Call</h2>
+        <video id="callVideo" autoplay playsinline></video>
+        <div style="display:flex; gap: 15px;">
+            <button onclick="endCall()" style="background: var(--danger-color); width: 120px;">End Call</button>
+        </div>
+    </div>
+
+    <!-- Sidebar -->
+    <sidebar>
+        <div class="brand">
+            <span>📡 LostCalls</span>
+            <span class="sub">A ChatSpace Community</span>
+        </div>
+
+        <div class="user-badge" id="userBadgeDisplay">
+            Identity: Loading...
+            <strong id="uniqueNameDisplay">-</strong>
+        </div>
+
+        <div class="form-group" style="margin-bottom: 5px;">
+            <label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size: 0.8rem;">
+                <input type="checkbox" id="toggleHideName" onchange="toggleHideStatus()"> Hide my name in online directory
+            </label>
+        </div>
+
+        <div class="nav-section">
+            <label>Chat Rooms</label>
+            <div class="room-list" id="roomListContainer"></div>
+            <button class="btn-secondary" onclick="createCustomRoom()">+ Create Custom Room</button>
+        </div>
+
+        <div class="nav-section">
+            <label>Online Directory (<span id="onlineCount">0</span>)</label>
+            <div class="user-list" id="userListContainer"></div>
+        </div>
+
+        <div class="nav-section">
+            <label>🔴 Missed Calls & Unanswered (<span id="missedCount">0</span>)</label>
+            <div class="missed-list" id="missedListContainer"></div>
+        </div>
+
+        <div class="nav-section">
+            <label>📬 LostCalls Dead-Drops (<span id="lostCount">0</span>)</label>
+            <div class="lost-calls-list" id="lostCallsContainer"></div>
+        </div>
+
+        <div style="font-size: 0.75rem; color: var(--text-muted); text-align: center; margin-top: auto;">
+            Gateway: 🟢 <code>callspace.run.place</code>
+        </div>
+    </sidebar>
+
+    <!-- Main Chat Workspace -->
+    <main>
+        <header>
+            <div class="header-title-wrapper">
+                <div id="currentRoomHeader" style="font-weight: 600; font-size: 1.05rem;">Channel: #Global Space</div>
+                <div class="resonance-pulse">
+                    <div class="pulse-dot"></div> HOLOGRAPHIC RESONANCE MESH SYNC ACTIVE
+                </div>
+            </div>
+            <div class="call-controls">
+                <button class="call-btn" onclick="startCall('voice')">📞 Voice Call</button>
+                <button class="call-btn" onclick="startCall('video')">📹 Video Call</button>
+            </div>
+        </header>
+
+        <div class="chat-container" id="chatContainer"></div>
+
+        <div class="input-bar">
+            <label class="file-upload-btn" title="Send Picture">
+                📷 <input type="file" id="imageInput" accept="image/*" onchange="sendImage(event)">
+            </label>
+            <input type="text" id="messageInput" placeholder="Broadcast transmission..." onkeypress="handleKeyPress(event)">
+            <button style="width: auto; padding: 0 20px;" onclick="sendMessage()">Send</button>
+        </div>
+    </main>
+
+    <script>
+        const maleFirsts = ["James", "John", "Robert", "Michael", "William", "David", "Richard", "Joseph", "Thomas", "Charles", "Christopher", "Daniel", "Matthew", "Anthony", "Mark", "Steven", "Andrew", "Paul", "Joshua", "Kevin", "Brian", "George", "Ryan", "Jason", "Justin", "Brandon"];
+        const maleLasts = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Taylor", "Moore", "Jackson", "Martin", "Lee", "Perez", "Thompson", "White"];
+        const femaleFirsts = ["Mary", "Patricia", "Jennifer", "Linda", "Elizabeth", "Barbara", "Susan", "Jessica", "Sarah", "Karen", "Nancy", "Lisa", "Betty", "Margaret", "Sandra", "Ashley", "Kimberly", "Emily", "Donna", "Michelle", "Amanda", "Melissa", "Deborah", "Stephanie", "Rebecca", "Laura", "Amy", "Angela", "Emma", "Nicole"];
+        const femaleLasts = ["Smith", "Johnson", "Williams", "Brown", "Jones", "Garcia", "Miller", "Davis", "Rodriguez", "Martinez", "Hernandez", "Lopez", "Gonzalez", "Wilson", "Anderson", "Taylor", "Moore", "Jackson", "Martin", "Lee", "Perez", "Thompson", "White"];
+
+        const STORAGE_KEY = 'lostcalls_master_state_v6';
+
+        let appState = JSON.parse(localStorage.getItem(STORAGE_KEY)) || {
+            currentUser: null,
+            rooms: {
+                "Global Space": { type: "public", messages: [] },
+                "South Side San Antonio": { type: "sa", messages: [] },
+                "North Side San Antonio": { type: "sa", messages: [] },
+                "Northwest Side San Antonio": { type: "sa", messages: [] },
+                "West Side San Antonio": { type: "sa", messages: [] },
+                "East Side San Antonio": { type: "sa", messages: [] }
+            },
+            currentRoom: "Global Space",
+            users: [],
+            permissions: {},
+            lostDrops: [
+                { sender: "System Beacon", text: "Offline packet buffer initialized. Dropped calls & syncs captured here.", time: "12:00:00" }
+            ],
+            missedLogs: []
+        };
+
+        // Web Audio Synthesized Ringtones & Beeps
+        let audioCtx = null;
+        let ringInterval = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
+
+        function playBeep(freq = 520, duration = 0.15, type = 'sine') {
+            try {
+                initAudio();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+                gain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (e) {
+                console.log("Audio play error:", e);
+            }
+        }
+
+        function playRingToneSequence() {
+            try {
+                initAudio();
+                const now = audioCtx.currentTime;
+                const osc1 = audioCtx.createOscillator();
+                const osc2 = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+
+                osc1.type = 'sine';
+                osc2.type = 'sine';
+                osc1.frequency.setValueAtTime(440, now);
+                osc2.frequency.setValueAtTime(480, now);
+
+                gain.gain.setValueAtTime(0.08, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 1.2);
+
+                osc1.connect(gain);
+                osc2.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc1.start(now);
+                osc2.start(now);
+                osc1.stop(now + 1.2);
+                osc2.stop(now + 1.2);
+            } catch (e) {
+                console.log("Ringtone error:", e);
+            }
+        }
+
+        function startRinging() {
+            playRingToneSequence();
+            ringInterval = setInterval(playRingToneSequence, 3000);
+        }
+
+        function stopRinging() {
+            if (ringInterval) {
+                clearInterval(ringInterval);
+                ringInterval = null;
+            }
+        }
+
+        function generateGenderName(gender, existingNames) {
+            let candidate = "";
+            const isMale = gender.toLowerCase() === "male";
+            const firsts = isMale ? maleFirsts : femaleFirsts;
+            const lasts = isMale ? maleLasts : femaleLasts;
+
+            do {
+                const f = firsts[Math.floor(Math.random() * firsts.length)];
+                if (Math.random() > 0.4) {
+                    const l = lasts[Math.floor(Math.random() * lasts.length)];
+                    candidate = `${f} ${l}`;
+                } else {
+                    candidate = f;
+                }
+                if (existingNames.includes(candidate)) {
+                    const num = Math.floor(10 + Math.random() * 90);
+                    candidate = `${candidate} ${num}`;
+                }
+            } while (existingNames.includes(candidate));
+            return candidate;
+        }
+
+        function completeOnboarding() {
+            playBeep(650, 0.2);
+            const age = document.getElementById('inputAge').value;
+            const gender = document.getElementById('inputGender').value;
+            const location = document.getElementById('inputLocation').value.trim();
+            const liability = document.getElementById('checkLiability').checked;
+
+            if (!age || !location || !liability) {
+                alert("Please fill in all fields and accept the Liability Contract to proceed.");
+                return;
+            }
+
+            const existingNames = appState.users.map(u => u.uniqueName);
+            const uniqueName = generateGenderName(gender, existingNames);
+
+            const isSA = location.toLowerCase().includes("san antonio");
+
+            appState.currentUser = {
+                uniqueName,
+                age: parseInt(age),
+                gender,
+                location,
+                isSanAntonio: isSA,
+                hidden: false,
+                invitedRooms: []
+            };
+
+            appState.users.push(appState.currentUser);
+            saveState();
+            document.getElementById('onboardingOverlay').style.display = 'none';
+            initApp();
+        }
+
+        function saveState() {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(appState));
+        }
+
+        function initApp() {
+            if (!appState.currentUser) {
+                document.getElementById('onboardingOverlay').style.display = 'flex';
+                return;
+            } else {
+                document.getElementById('onboardingOverlay').style.display = 'none';
+            }
+
+            document.getElementById('uniqueNameDisplay').innerText = appState.currentUser.uniqueName;
+            document.getElementById('toggleHideName').checked = appState.currentUser.hidden;
+
+            renderRooms();
+            renderUsers();
+            renderLostDrops();
+            renderMissedLogs();
+            renderMessages();
+        }
+
+        function toggleHideStatus() {
+            playBeep(400, 0.1);
+            appState.currentUser.hidden = document.getElementById('toggleHideName').checked;
+            const idx = appState.users.findIndex(u => u.uniqueName === appState.currentUser.uniqueName);
+            if (idx !== -1) appState.users[idx].hidden = appState.currentUser.hidden;
+            saveState();
+            renderUsers();
+        }
+
+        function renderRooms() {
+            const container = document.getElementById('roomListContainer');
+            container.innerHTML = '';
+
+            Object.keys(appState.rooms).forEach(roomName => {
+                const div = document.createElement('div');
+                div.className = `room-item ${roomName === appState.currentRoom ? 'active' : ''}`;
+                div.innerText = `# ${roomName}`;
+                div.onclick = () => { playBeep(580, 0.1); selectRoom(roomName); };
+                container.appendChild(div);
+            });
+        }
+
+        function selectRoom(roomName) {
+            const saRooms = [
+                "South Side San Antonio", 
+                "North Side San Antonio", 
+                "Northwest Side San Antonio", 
+                "West Side San Antonio", 
+                "East Side San Antonio"
+            ];
+            
+            if (saRooms.includes(roomName)) {
+                if (!appState.currentUser.isSanAntonio && !appState.currentUser.invitedRooms.includes(roomName)) {
+                    playBeep(250, 0.3);
+                    alert("Access Denied: This room is accessible to San Antonio residents automatically, and requires an explicit invitation for non-SA residents.");
+                    return;
+                }
+            }
+
+            appState.currentRoom = roomName;
+            document.getElementById('currentRoomHeader').innerText = `Channel: #${roomName}`;
+            saveState();
+            renderRooms();
+            renderMessages();
+        }
+
+        function createCustomRoom() {
+            playBeep(600, 0.1);
+            const roomName = prompt("Enter custom room name (must be unique):");
+            if (!roomName) return;
+            const cleanName = roomName.trim();
+            if (appState.rooms[cleanName]) {
+                alert("Room name already exists!");
+                return;
+            }
+            appState.rooms[cleanName] = { type: "custom", messages: [] };
+            selectRoom(cleanName);
+        }
+
+        function renderUsers() {
+            const container = document.getElementById('userListContainer');
+            container.innerHTML = '';
+            
+            const visibleUsers = appState.users.filter(u => !u.hidden || u.uniqueName === appState.currentUser.uniqueName);
+            document.getElementById('onlineCount').innerText = visibleUsers.length;
+
+            visibleUsers.forEach(user => {
+                if (user.uniqueName === appState.currentUser.uniqueName) return;
+                const div = document.createElement('div');
+                div.className = 'user-item';
+                div.innerHTML = `<span>👤 ${user.uniqueName}</span> <button style="width:auto; padding:2px 6px; font-size:0.75rem;" onclick="requestDirectChat('${user.uniqueName}')">Connect</button>`;
+                container.appendChild(div);
+            });
+        }
+
+        function renderLostDrops() {
+            const container = document.getElementById('lostCallsContainer');
+            container.innerHTML = '';
+            document.getElementById('lostCount').innerText = appState.lostDrops.length;
+
+            appState.lostDrops.forEach(drop => {
+                const div = document.createElement('div');
+                div.className = 'lost-item';
+                div.innerHTML = `<span><strong>[${drop.time}]</strong> ${drop.sender}: ${drop.text.substring(0, 18)}...</span>`;
+                container.appendChild(div);
+            });
+        }
+
+        function renderMissedLogs() {
+            const container = document.getElementById('missedListContainer');
+            container.innerHTML = '';
+            document.getElementById('missedCount').innerText = appState.missedLogs.length;
+
+            if (appState.missedLogs.length === 0) {
+                container.innerHTML = `<div style="padding: 6px 10px; font-size: 0.75rem; color: var(--text-muted);">No missed calls or alerts.</div>`;
+                return;
+            }
+
+            appState.missedLogs.forEach((log, index) => {
+                const div = document.createElement('div');
+                div.className = 'missed-item';
+                div.innerHTML = `<span>🔴 <strong>[${log.time}]</strong> ${log.type}: ${log.from}</span> <button style="width:auto; padding:2px 5px; font-size:0.7rem;" onclick="clearMissedLog(${index})">Clear</button>`;
+                container.appendChild(div);
+            });
+        }
+
+        function clearMissedLog(index) {
+            playBeep(500, 0.1);
+            appState.missedLogs.splice(index, 1);
+            saveState();
+            renderMissedLogs();
+        }
+
+        function requestDirectChat(targetName) {
+            playBeep(700, 0.15);
+            if (!appState.permissions[targetName]) {
+                const accept = confirm(`You are attempting to contact ${targetName}. They must approve your connection request. Send request?`);
+                if (accept) {
+                    appState.permissions[targetName] = true;
+                    alert(`Connection request accepted by ${targetName}. Secure channel established.`);
+                } else {
+                    appState.missedLogs.unshift({ type: "Connection Attempt", from: targetName, time: new Date().toLocaleTimeString() });
+                    saveState();
+                    renderMissedLogs();
+                    return;
+                }
+            }
+            const directRoomName = `DM: ${appState.currentUser.uniqueName} & ${targetName}`;
+            if (!appState.rooms[directRoomName]) {
+                appState.rooms[directRoomName] = { type: "dm", messages: [] };
+            }
+            selectRoom(directRoomName);
+        }
+
+        function renderMessages() {
+            const container = document.getElementById('chatContainer');
+            container.innerHTML = '';
+
+            const room = appState.rooms[appState.currentRoom];
+            if (!room) return;
+
+            room.messages.forEach(msg => {
+                const div = document.createElement('div');
+                const isSelf = msg.sender === appState.currentUser.uniqueName;
+                div.className = `message ${isSelf ? 'self' : ''}`;
+
+                const meta = document.createElement('div');
+                meta.className = 'meta';
+                meta.innerHTML = `<span><strong>${msg.sender}</strong></span><span>${msg.time}</span>`;
+                div.appendChild(meta);
+
+                if (msg.text) {
+                    const txt = document.createElement('div');
+                    txt.innerText = msg.text;
+                    div.appendChild(txt);
+                }
+
+                if (msg.image) {
+                    const img = document.createElement('img');
+                    img.src = msg.image;
+                    div.appendChild(img);
+                }
+
+                container.appendChild(div);
+            });
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function sendMessage() {
+            playBeep(750, 0.08);
+            const input = document.getElementById('messageInput');
+            const text = input.value.trim();
+            if (!text) return;
+
+            const time = new Date().toLocaleTimeString();
+            const msg = { sender: appState.currentUser.uniqueName, text, time };
+
+            appState.rooms[appState.currentRoom].messages.push(msg);
+            
+            if (Math.random() < 0.15) {
+                appState.lostDrops.unshift({ sender: appState.currentUser.uniqueName, text, time });
+                renderLostDrops();
+            }
+
+            input.value = '';
+            saveState();
+            renderMessages();
+        }
+
+        function sendImage(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                playBeep(800, 0.1);
+                const time = new Date().toLocaleTimeString();
+                const msg = { sender: appState.currentUser.uniqueName, text: "[Shared Picture]", image: e.target.result, time };
+                appState.rooms[appState.currentRoom].messages.push(msg);
+                saveState();
+                renderMessages();
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function handleKeyPress(event) {
+            if (event.key === 'Enter') sendMessage();
+        }
+
+        let activeStream = null;
+        async function startCall(type) {
+            playBeep(600, 0.2);
+            startRinging();
+            const modal = document.getElementById('mediaModal');
+            const videoElement = document.getElementById('callVideo');
+            document.getElementById('callTitle').innerText = `Active Secure ${type === 'video' ? 'Video' : 'Voice'} Call`;
+            modal.style.display = 'flex';
+
+            try {
+                const constraints = {
+                    audio: true,
+                    video: type === 'video'
+                };
+                activeStream = await navigator.mediaDevices.getUserMedia(constraints);
+                videoElement.srcObject = activeStream;
+            } catch (err) {
+                stopRinging();
+                appState.missedLogs.unshift({ type: `${type.toUpperCase()} Call`, from: "Self / Node Peer", time: new Date().toLocaleTimeString() });
+                saveState();
+                renderMissedLogs();
+
+                alert("Media permission required for voice/video calls. Call logged as unanswered.");
+                modal.style.display = 'none';
+            }
+        }
+
+        function endCall() {
+            playBeep(350, 0.2);
+            stopRinging();
+            if (activeStream) {
+                activeStream.getTracks().forEach(track => track.stop());
+                activeStream = null;
+            }
+            document.getElementById('mediaModal').style.display = 'none';
+        }
+
+        window.onload = () => {
+            initApp();
+        };
+    </script>
+</body>
+</html>
